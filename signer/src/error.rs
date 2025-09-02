@@ -7,6 +7,8 @@ pub enum Error {
     IO(io::Error),
     /// Prost error
     Prost(prost::DecodeError),
+    /// Timeout
+    Timeout,
 }
 
 impl std::error::Error for Error {}
@@ -16,6 +18,7 @@ impl fmt::Display for Error {
         match self {
             Self::IO(e) => e.fmt(f),
             Self::Prost(e) => e.fmt(f),
+            Self::Timeout => f.write_str("Timeout"),
         }
     }
 }
