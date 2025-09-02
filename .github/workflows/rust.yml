@@ -24,6 +24,7 @@ jobs:
         run: rustup component add rustfmt --toolchain nightly
 
       - name: Check
+        working-directory: signer
         run: cargo +nightly fmt --all --check -- --config format_code_in_doc_comments=true
 
   check:
@@ -35,6 +36,8 @@ jobs:
 
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2.7.8
+      with:
+        workspaces: signer
 
     - name: Install protoc
       run: |
@@ -42,10 +45,13 @@ jobs:
         sudo apt-get install -y protobuf-compiler libprotobuf-dev
 
     - name: Check
+      working-directory: signer
       run: cargo check
 
     - name: Clippy
+      working-directory: signer
       run: cargo clippy -- -D warnings
 
     - name: Test
+      working-directory: signer
       run: cargo test
