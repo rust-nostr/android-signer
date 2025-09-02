@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package android_signer;
+
+service AndroidSigner {
+  rpc IsExternalSignerInstalled (IsExternalSignerInstalledRequest) returns (IsExternalSignerInstalledReply) {}
+}
+
+message IsExternalSignerInstalledRequest {}
+
+message IsExternalSignerInstalledReply {
+  bool installed = 1;
+}

@@ -1,0 +1,18 @@
+[package]
+name = "nostr-android-signer"
+version = "0.1.0"
+edition = "2024"
+description = "Nostr Android signer (NIP-55)"
+authors = ["Yuki Kishimoto <yukikishimoto@protonmail.com>"]
+homepage = "https://github.com/rust-nostr/android-signer"
+repository = "https://github.com/rust-nostr/android-signer.git"
+license = "MIT"
+readme = "README.md"
+rust-version = "1.85.0"
+keywords = ["nostr", "nip55", "android", "signer"]
+
+[dependencies]
+prost = "0.14"
+
+[build-dependencies]
+prost-build = "0.14"
