@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    id("com.vanniktech.maven.publish") version "0.34.0"
 }
 
 android {
@@ -40,3 +41,42 @@ dependencies {
     implementation(libs.appcompat)
 }
 
+val version: String = "0.43.0"
+val isSnapshot: Boolean = version.contains("SNAPSHOT")
+
+mavenPublishing {
+    configure(com.vanniktech.maven.publish.AndroidMultiVariantLibrary(
+        sourcesJar = true,
+        publishJavadocJar = true,
+    ))
+
+    publishToMavenCentral(automaticRelease = !isSnapshot)
+
+    signAllPublications()
+
+    coordinates("org.rust-nostr", "android-signer-proxy", version)
+
+    pom {
+        name.set("android-signer-proxy")
+        description.set("Android Kotlin implementation that acts as a proxy/bridge for NIP-55 communication.")
+        url.set("https://rust-nostr.org")
+        licenses {
+            license {
+                name.set("MIT")
+                url.set("https://rust-nostr.org/license")
+            }
+        }
+        developers {
+            developer {
+                id.set("yukibtc")
+                name.set("Yuki Kishimoto")
+                email.set("yukikishimoto@protonmail.com")
+            }
+        }
+        scm {
+            connection.set("scm:git:github.com/rust-nostr/android-signer.git")
+            developerConnection.set("scm:git:ssh://github.com/rust-nostr/android-signer.git")
+            url.set("https://github.com/rust-nostr/android-signer")
+        }
+    }
+}
