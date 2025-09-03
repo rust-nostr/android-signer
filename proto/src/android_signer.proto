@@ -1,8 +1,5 @@
 syntax = "proto3";
 
-option java_package = "rust.nostr.android.signer.proxy.protobuf";
-option java_outer_classname = "AndroidSignerProxyProto";
-
 package android_signer;
 
 service AndroidSigner {
