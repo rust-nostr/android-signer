@@ -12,9 +12,9 @@ rust-version = "1.85.0"
 keywords = ["nostr", "nip55", "android", "signer"]
 
 [dependencies]
-prost = "0.14"
-tokio = { version = "1", features = ["io-util", "net", "time"] }
-uds = "0.4"
-
-[build-dependencies]
-prost-build = "0.14"
+hyper-util = "0.1"
+nostr-android-signer-proto.workspace = true
+tokio = { workspace = true, features = ["net", "sync"] }
+tonic.workspace = true
+tower = "0.5"
+uds.workspace = true

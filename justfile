@@ -6,10 +6,20 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 default:
     @just --list
 
-# Execute pre-commit tasks
-precommit:
-  cd signer && just precommit
+fmt:
+    cargo +nightly fmt --all -- --config format_code_in_doc_comments=true
 
-# Regenerate protobuf for the Android Proxy
-proto:
-    protoc --proto_path=signer/src/proto --java_out=proxy/lib/src/main/java --kotlin_out=proxy/lib/src/main/java signer/src/proto/android_signer.proto
+check:
+    cargo check --all
+    cargo check --all-features
+
+clippy:
+    cargo clippy --all
+    cargo clippy --all-features
+
+test:
+    cargo test --all
+    cargo test --all-features
+
+# Execute pre-commit tasks
+precommit: fmt check clippy test

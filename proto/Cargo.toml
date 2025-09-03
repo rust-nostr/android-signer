@@ -1,0 +1,12 @@
+[package]
+name = "nostr-android-signer-proto"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prost = "0.14"
+tonic.workspace = true
+tonic-prost.workspace = true
+
+[build-dependencies]
+tonic-prost-build = "0.14"

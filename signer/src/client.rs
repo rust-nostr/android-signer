@@ -1,23 +1,26 @@
 use std::os::unix::net::UnixStream as StdUnixStream;
-use std::time::Duration;
+use std::sync::Arc;
 
-use prost::Message;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use hyper_util::rt::TokioIo;
+use nostr_android_signer_proto::android_signer_client::AndroidSignerClient;
+use nostr_android_signer_proto::{
+    IsExternalSignerInstalledReply, IsExternalSignerInstalledRequest,
+};
 use tokio::net::UnixStream as TokioUnixStream;
-use tokio::time;
+use tokio::sync::{Mutex, OnceCell};
+use tonic::transport::{Channel, Endpoint, Uri};
+use tonic::{Request, Response};
+use tower::service_fn;
 use uds::{UnixSocketAddr, UnixStreamExt};
 
 use crate::error::Error;
-use crate::proto::android_signer::{
-    IsExternalSignerInstalledReply, IsExternalSignerInstalledRequest,
-};
 
 #[derive(Debug, Clone)]
 pub struct AndroidSigner {
     /// UNIX socket address
     socket_addr: UnixSocketAddr,
     /// Timeout for requests
-    timeout: Duration,
+    client: OnceCell<Arc<Mutex<AndroidSignerClient<Channel>>>>,
 }
 
 impl AndroidSigner {
@@ -27,62 +30,58 @@ impl AndroidSigner {
 
         Ok(Self {
             socket_addr: UnixSocketAddr::from_abstract(name.as_bytes())?,
-            timeout: Duration::from_secs(30),
+            client: OnceCell::new(),
         })
     }
 
-    async fn connect(&self) -> Result<TokioUnixStream, Error> {
-        // Connect to the abstract socket
-        let std_stream: StdUnixStream = StdUnixStream::connect_to_unix_addr(&self.socket_addr)?;
+    async fn client(&self) -> Result<&Arc<Mutex<AndroidSignerClient<Channel>>>, Error> {
+        self.client
+            .get_or_try_init(|| async {
+                let socket_addr: UnixSocketAddr = self.socket_addr;
 
-        // Moves the socket into nonblocking mode
-        std_stream.set_nonblocking(true)?;
+                // We will ignore this uri because uds do not use it
+                let channel: Channel = Endpoint::try_from("unix://fake_uri")?
+                    .connect_with_connector(service_fn(move |_: Uri| async move {
+                        let stream: TokioUnixStream = connect(&socket_addr)?;
 
-        // Convert to Tokio's async UnixStream
-        Ok(TokioUnixStream::from_std(std_stream)?)
-    }
+                        Ok::<_, Error>(TokioIo::new(stream))
+                    }))
+                    .await?;
 
-    async fn send_request<T>(&self, request: T) -> Result<Vec<u8>, Error>
-    where
-        T: Message,
-    {
-        let stream: TokioUnixStream = self.connect().await?;
+                // Construct client
+                let client: AndroidSignerClient<Channel> = AndroidSignerClient::new(channel);
 
-        let (mut read_half, mut write_half) = stream.into_split();
-
-        let bytes: Vec<u8> = request.encode_length_delimited_to_vec();
-
-        // Send request
-        write_half.write_all(&bytes).await?;
-        write_half.flush().await?;
-
-        // Shutdown the write half to send EOF
-        write_half.shutdown().await?;
-
-        // Read response with a buffer
-        let mut response: Vec<u8> = Vec::new();
-        read_half.read_to_end(&mut response).await?;
-
-        Ok(response)
-    }
-
-    async fn send_request_with_timeout<T>(&self, request: T) -> Result<Vec<u8>, Error>
-    where
-        T: Message,
-    {
-        time::timeout(self.timeout, self.send_request(request))
+                Ok(Arc::new(Mutex::new(client)))
+            })
             .await
-            .map_err(|_| Error::Timeout)?
     }
 
     pub async fn is_external_signer_installed(&self) -> Result<bool, Error> {
-        let request: IsExternalSignerInstalledRequest = IsExternalSignerInstalledRequest {};
+        // Get the client
+        let client = self.client().await?;
 
-        let response: Vec<u8> = self.send_request_with_timeout(request).await?;
+        // Acquire the lock
+        let mut client = client.lock().await;
 
-        let response: IsExternalSignerInstalledReply =
-            IsExternalSignerInstalledReply::decode(&response[..])?;
+        // Make the request
+        let req: Request<IsExternalSignerInstalledRequest> =
+            Request::new(IsExternalSignerInstalledRequest {});
+        let res: Response<IsExternalSignerInstalledReply> =
+            client.is_external_signer_installed(req).await?;
 
-        Ok(response.installed)
+        // Unwrap the response
+        let inner: IsExternalSignerInstalledReply = res.into_inner();
+        Ok(inner.installed)
     }
+}
+
+fn connect(socket_addr: &UnixSocketAddr) -> Result<TokioUnixStream, Error> {
+    // Connect to the abstract socket
+    let std_stream: StdUnixStream = StdUnixStream::connect_to_unix_addr(socket_addr)?;
+
+    // Moves the socket into nonblocking mode
+    std_stream.set_nonblocking(true)?;
+
+    // Convert to Tokio's async UnixStream
+    Ok(TokioUnixStream::from_std(std_stream)?)
 }
