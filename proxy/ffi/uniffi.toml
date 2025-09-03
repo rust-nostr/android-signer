@@ -1,0 +1,4 @@
+[bindings.kotlin]
+package_name = "rust.nostr.android.signer.proxy.ffi"
+android = true
+android_cleaner = true

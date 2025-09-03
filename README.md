@@ -7,9 +7,11 @@ Nostr Android signer implementation ([NIP-55](https://github.com/nostr-protocol/
 ## Project structure
 
 - [proxy]: Android Kotlin implementation that acts as a proxy/bridge for NIP-55 communication.
+  - [proxy/ffi]: FFI bindings for the [proxy].
 - [signer]: Rust implementation of a NIP-55 signer that works through the [proxy].
 
 [proxy]: proxy
+[proxy/ffi]: proxy/ffi
 [signer]: signer
 
 ## State

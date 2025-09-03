@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "proto",
+    "proxy/ffi",
+    "proxy/uniffi-bindgen",
     "signer"
 ]
 resolver = "2"
@@ -11,3 +13,4 @@ tokio = { version = "1", default-features = false }
 tonic = "0.14"
 tonic-prost = "0.14"
 uds = "0.4"
+uniffi = "=0.29.4"

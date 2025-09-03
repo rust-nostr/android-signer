@@ -1,0 +1,17 @@
+[package]
+name = "nostr_android_signer_proxy"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+async-trait = "0.1"
+nostr-android-signer-proto.workspace = true
+tokio = { workspace = true, features = ["net"] }
+tokio-stream = "0.1"
+tonic.workspace = true
+uds.workspace = true
+uniffi = { workspace = true, features = ["tokio"] }
