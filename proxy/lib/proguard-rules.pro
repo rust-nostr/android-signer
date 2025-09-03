@@ -20,14 +20,9 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
-# Keep the NostrAndroidSignerProxy class as it's part of the public API
--keep class rust.nostr.android.signer.proxy.NostrAndroidSignerProxy { *; }
-
-# Keep all protobuf classes
--keep class rust.nostr.android.signer.proxy.protobuf.** { *; }
-
-# If you have other public API classes, add them here
--keep class rust.nostr.android.signer.proxy.** {
-    public *;
-}
+-dontwarn java.awt.*
+-keep class com.sun.jna.* { *; }
+-keep class rust.nostr.** { *; }
+-keepclassmembers class * extends rust.nostr.* { public *; }
+-keepclassmembers class * extends com.sun.jna.* { public *; }
 

@@ -35,9 +35,8 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-
-    // Protobuf dependencies
-    implementation(libs.protobuf.kotlin)
+    implementation(libs.jna)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.appcompat)
 }
 
