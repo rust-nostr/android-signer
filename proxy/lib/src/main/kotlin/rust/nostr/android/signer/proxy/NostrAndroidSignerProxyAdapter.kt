@@ -105,6 +105,30 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                 }
             }
 
+            "nip44_encrypt" -> {
+                val encryptedText: String? = data?.getStringExtra("result")
+
+                if (encryptedText != null) {
+                    continuation.resume(encryptedText)
+                } else {
+                    val exception =
+                        AndroidSignerProxyException.Callback("No ciphertext received from signer")
+                    continuation.resumeWithException(exception)
+                }
+            }
+
+            "nip44_decrypt" -> {
+                val plaintext: String? = data?.getStringExtra("result")
+
+                if (plaintext != null) {
+                    continuation.resume(plaintext)
+                } else {
+                    val exception =
+                        AndroidSignerProxyException.Callback("No plaintext received from signer")
+                    continuation.resumeWithException(exception)
+                }
+            }
+
             else -> {
                 val exception =
                     AndroidSignerProxyException.Callback("Unknown request type: $requestType")
@@ -208,6 +232,66 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                 }
             }
 
+            "nip44_encrypt" -> {
+                val currentUserPublicKey = request.params["current_user_pubkey"]
+                val otherPublicKey = request.params["other_public_key"]
+                val plaintext = request.params["plaintext"]
+
+                if (currentUserPublicKey == null) {
+                    throw IllegalArgumentException("Current user public key is required for nip44_encrypt request")
+                }
+
+                if (otherPublicKey == null) {
+                    throw IllegalArgumentException("Other user public key is required for nip44_encrypt request")
+                }
+
+                if (plaintext == null) {
+                    throw IllegalArgumentException("Plaintext is required for nip44_encrypt request")
+                }
+
+                Intent(Intent.ACTION_VIEW, "nostrsigner:$plaintext".toUri()).apply {
+                    // Set package name
+                    packageName?.let { `package` = it }
+
+                    // Set request type
+                    putExtra("type", "nip44_encrypt")
+
+                    // Add data
+                    putExtra("current_user", currentUserPublicKey)
+                    putExtra("pubkey", otherPublicKey)
+                }
+            }
+
+            "nip44_decrypt" -> {
+                val currentUserPublicKey = request.params["current_user_pubkey"]
+                val otherPublicKey = request.params["other_public_key"]
+                val ciphertext = request.params["ciphertext"]
+
+                if (currentUserPublicKey == null) {
+                    throw IllegalArgumentException("Current user public key is required for nip44_decrypt request")
+                }
+
+                if (otherPublicKey == null) {
+                    throw IllegalArgumentException("Other user public key is required for nip44_decrypt request")
+                }
+
+                if (ciphertext == null) {
+                    throw IllegalArgumentException("Ciphertext is required for nip44_decrypt request")
+                }
+
+                Intent(Intent.ACTION_VIEW, "nostrsigner:$ciphertext".toUri()).apply {
+                    // Set package name
+                    packageName?.let { `package` = it }
+
+                    // Set request type
+                    putExtra("type", "nip44_decrypt")
+
+                    // Add data
+                    putExtra("current_user", currentUserPublicKey)
+                    putExtra("pubkey", otherPublicKey)
+                }
+            }
+
             else -> throw IllegalArgumentException("Unknown request type: ${request.type}")
         }
 
@@ -273,6 +357,36 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     ): String {
         return queueRequest(
             "nip04_decrypt",
+            mapOf(
+                "current_user_pubkey" to currentUserPublicKey,
+                "other_public_key" to otherUserPublicKey,
+                "ciphertext" to ciphertext
+            )
+        )
+    }
+
+    override suspend fun nip44Encrypt(
+        currentUserPublicKey: String,
+        otherUserPublicKey: String,
+        plaintext: String
+    ): String {
+        return queueRequest(
+            "nip44_encrypt",
+            mapOf(
+                "current_user_pubkey" to currentUserPublicKey,
+                "other_public_key" to otherUserPublicKey,
+                "plaintext" to plaintext
+            )
+        )
+    }
+
+    override suspend fun nip44Decrypt(
+        currentUserPublicKey: String,
+        otherUserPublicKey: String,
+        ciphertext: String
+    ): String {
+        return queueRequest(
+            "nip44_decrypt",
             mapOf(
                 "current_user_pubkey" to currentUserPublicKey,
                 "other_public_key" to otherUserPublicKey,

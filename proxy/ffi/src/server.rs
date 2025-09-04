@@ -5,7 +5,8 @@ use nostr_android_signer_proto::android_signer_server::{AndroidSigner, AndroidSi
 use nostr_android_signer_proto::{
     GetPublicKeyReply, GetPublicKeyRequest, IsExternalSignerInstalledReply,
     IsExternalSignerInstalledRequest, Nip04DecryptReply, Nip04DecryptRequest, Nip04EncryptReply,
-    Nip04EncryptRequest, SignEventReply, SignEventRequest,
+    Nip04EncryptRequest, Nip44DecryptReply, Nip44DecryptRequest, Nip44EncryptReply,
+    Nip44EncryptRequest, SignEventReply, SignEventRequest,
 };
 use tokio::net::UnixListener as TokioUnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
@@ -80,6 +81,38 @@ impl AndroidSigner for SignerAdapter {
             .await?;
         Ok(Response::new(Nip04DecryptReply { plaintext }))
     }
+
+    async fn nip44_encrypt(
+        &self,
+        request: Request<Nip44EncryptRequest>,
+    ) -> Result<Response<Nip44EncryptReply>, Status> {
+        let req: Nip44EncryptRequest = request.into_inner();
+        let ciphertext: String = self
+            .callback
+            .nip44_encrypt(
+                req.current_user_public_key,
+                req.other_public_key,
+                req.plaintext,
+            )
+            .await?;
+        Ok(Response::new(Nip44EncryptReply { ciphertext }))
+    }
+
+    async fn nip44_decrypt(
+        &self,
+        request: Request<Nip44DecryptRequest>,
+    ) -> Result<Response<Nip44DecryptReply>, Status> {
+        let req: Nip44DecryptRequest = request.into_inner();
+        let plaintext: String = self
+            .callback
+            .nip44_encrypt(
+                req.current_user_public_key,
+                req.other_public_key,
+                req.ciphertext,
+            )
+            .await?;
+        Ok(Response::new(Nip44DecryptReply { plaintext }))
+    }
 }
 
 #[derive(Object)]
@@ -150,6 +183,20 @@ pub trait NostrAndroidSignerProxyCallback: Send + Sync {
     ) -> Result<String, AndroidSignerProxyError>;
 
     async fn nip04_decrypt(
+        &self,
+        current_user_public_key: String,
+        other_user_public_key: String,
+        ciphertext: String,
+    ) -> Result<String, AndroidSignerProxyError>;
+
+    async fn nip44_encrypt(
+        &self,
+        current_user_public_key: String,
+        other_user_public_key: String,
+        plaintext: String,
+    ) -> Result<String, AndroidSignerProxyError>;
+
+    async fn nip44_decrypt(
         &self,
         current_user_public_key: String,
         other_user_public_key: String,
