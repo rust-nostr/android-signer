@@ -6,6 +6,8 @@ service AndroidSigner {
   rpc IsExternalSignerInstalled (IsExternalSignerInstalledRequest) returns (IsExternalSignerInstalledReply) {}
 
   rpc GetPublicKey (GetPublicKeyRequest) returns (GetPublicKeyReply) {}
+
+  rpc SignEvent (SignEventRequest) returns (SignEventReply) {}
 }
 
 message IsExternalSignerInstalledRequest {}
@@ -18,4 +20,14 @@ message GetPublicKeyRequest {}
 
 message GetPublicKeyReply {
   string public_key = 1;
+}
+
+message SignEventRequest {
+  // The unsigned event JSON
+  string unsigned_event = 1;
+}
+
+message SignEventReply {
+  // The event JSON
+  string event = 1;
 }

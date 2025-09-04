@@ -7,7 +7,7 @@ use nostr::prelude::*;
 use nostr_android_signer_proto::android_signer_client::AndroidSignerClient;
 use nostr_android_signer_proto::{
     GetPublicKeyReply, GetPublicKeyRequest, IsExternalSignerInstalledReply,
-    IsExternalSignerInstalledRequest,
+    IsExternalSignerInstalledRequest, SignEventReply, SignEventRequest,
 };
 use tokio::net::UnixStream as TokioUnixStream;
 use tokio::sync::{Mutex, OnceCell};
@@ -92,6 +92,29 @@ impl AndroidSigner {
         let inner: GetPublicKeyReply = res.into_inner();
         Ok(PublicKey::parse(&inner.public_key)?)
     }
+
+    async fn _sign_event(&self, unsigned: UnsignedEvent) -> Result<Event, Error> {
+        // Get the client
+        let client = self.client().await?;
+
+        // Acquire the lock
+        let mut client = client.lock().await;
+
+        // Make the request
+        let req: Request<SignEventRequest> = Request::new(SignEventRequest {
+            unsigned_event: unsigned.as_json(),
+        });
+        let res: Response<SignEventReply> = client.sign_event(req).await?;
+
+        // Unwrap the response
+        let inner: SignEventReply = res.into_inner();
+        let event: Event = Event::from_json(&inner.event)?;
+
+        // Verify
+        event.verify()?;
+
+        Ok(event)
+    }
 }
 
 impl NostrSigner for AndroidSigner {
@@ -103,8 +126,12 @@ impl NostrSigner for AndroidSigner {
         Box::pin(async move { self._get_public_key().await.map_err(SignerError::backend) })
     }
 
-    fn sign_event(&self, _unsigned: UnsignedEvent) -> BoxedFuture<Result<Event, SignerError>> {
-        todo!()
+    fn sign_event(&self, unsigned: UnsignedEvent) -> BoxedFuture<Result<Event, SignerError>> {
+        Box::pin(async move {
+            self._sign_event(unsigned)
+                .await
+                .map_err(SignerError::backend)
+        })
     }
 
     fn nip04_encrypt<'a>(

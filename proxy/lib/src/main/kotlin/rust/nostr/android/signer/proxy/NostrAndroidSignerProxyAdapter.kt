@@ -18,13 +18,15 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     private var packageName: String? = null
 
     // Keep track of the current continuation
-    private var currentContinuation: kotlin.coroutines.Continuation<String>? = null
+    private var publicKeyContinuation: kotlin.coroutines.Continuation<String>? = null
+    private var signEventContinuation: kotlin.coroutines.Continuation<String>? = null
+
 
     // Pre-register the launcher during initialization
     private val publicKeyLauncher = activity.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        currentContinuation?.let { continuation ->
+        publicKeyContinuation?.let { continuation ->
             if (result.resultCode != Activity.RESULT_OK) {
                 val exception = AndroidSignerProxyException.Callback("Request rejected")
                 continuation.resumeWithException(exception)
@@ -40,9 +42,33 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                     continuation.resumeWithException(exception)
                 }
             }
-            currentContinuation = null
+            publicKeyContinuation = null
         }
     }
+
+    // Pre-register the launcher for sign event
+    private val signEventLauncher = activity.registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        signEventContinuation?.let { continuation ->
+            if (result.resultCode != Activity.RESULT_OK) {
+                val exception = AndroidSignerProxyException.Callback("Request rejected")
+                continuation.resumeWithException(exception)
+            } else {
+                //val signature: String? = result.data?.getStringExtra("result")
+                val signedEventJson: String? = result.data?.getStringExtra("event")
+
+                if (signedEventJson != null) {
+                    continuation.resume(signedEventJson)
+                } else {
+                    val exception = AndroidSignerProxyException.Callback("No event received from signer")
+                    continuation.resumeWithException(exception)
+                }
+            }
+            signEventContinuation = null
+        }
+    }
+
 
     override suspend fun isExternalSignerInstalled(): Boolean = withContext(Dispatchers.IO) {
         val intent =
@@ -57,7 +83,7 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     override suspend fun getPublicKey(): String = withContext(Dispatchers.Main) {
         return@withContext suspendCancellableCoroutine { continuation ->
             // Store the continuation for the callback to use
-            currentContinuation = continuation
+            publicKeyContinuation = continuation
 
             val intent = Intent(Intent.ACTION_VIEW, "nostrsigner:".toUri()).apply {
                 putExtra("type", "get_public_key")
@@ -67,8 +93,28 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
 
             // Set up cancellation handling
             continuation.invokeOnCancellation {
-                currentContinuation = null
+                publicKeyContinuation = null
             }
         }
     }
+
+    override suspend fun signEvent(unsigned: String): String = withContext(Dispatchers.Main) {
+        return@withContext suspendCancellableCoroutine { continuation ->
+            // Store the continuation for the callback to use
+            signEventContinuation = continuation
+
+            val intent = Intent(Intent.ACTION_VIEW, "nostrsigner:$unsigned".toUri()).apply {
+                packageName?.let { `package` = it }
+                putExtra("type", "sign_event")
+            }
+
+            signEventLauncher.launch(intent)
+
+            // Set up cancellation handling
+            continuation.invokeOnCancellation {
+                signEventContinuation = null
+            }
+        }
+    }
+
 }
