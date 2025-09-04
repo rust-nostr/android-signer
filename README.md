@@ -22,7 +22,11 @@ Add the following to your `build.gradle.kts` file:
 
 ```kotlin
 repositories {
+    // Use this for releases
     mavenCentral()
+    
+    // Or this for snapshots
+    maven("https://central.sonatype.com/repository/maven-snapshots/")
 }
 
 dependencies { 
