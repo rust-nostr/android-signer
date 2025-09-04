@@ -24,6 +24,8 @@ pub struct AndroidSigner {
     socket_addr: UnixSocketAddr,
     /// Timeout for requests
     client: OnceCell<Arc<Mutex<AndroidSignerClient<Channel>>>>,
+    /// Current user public key
+    public_key: OnceCell<PublicKey>,
 }
 
 impl AndroidSigner {
@@ -34,6 +36,7 @@ impl AndroidSigner {
         Ok(Self {
             socket_addr: UnixSocketAddr::from_abstract(name.as_bytes())?,
             client: OnceCell::new(),
+            public_key: OnceCell::new(),
         })
     }
 
@@ -77,20 +80,24 @@ impl AndroidSigner {
         Ok(inner.installed)
     }
 
-    async fn _get_public_key(&self) -> Result<PublicKey, Error> {
-        // Get the client
-        let client = self.client().await?;
+    async fn _get_public_key(&self) -> Result<&PublicKey, Error> {
+        self.public_key
+            .get_or_try_init(|| async {
+                // Get the client
+                let client = self.client().await?;
 
-        // Acquire the lock
-        let mut client = client.lock().await;
+                // Acquire the lock
+                let mut client = client.lock().await;
 
-        // Make the request
-        let req: Request<GetPublicKeyRequest> = Request::new(GetPublicKeyRequest {});
-        let res: Response<GetPublicKeyReply> = client.get_public_key(req).await?;
+                // Make the request
+                let req: Request<GetPublicKeyRequest> = Request::new(GetPublicKeyRequest {});
+                let res: Response<GetPublicKeyReply> = client.get_public_key(req).await?;
 
-        // Unwrap the response
-        let inner: GetPublicKeyReply = res.into_inner();
-        Ok(PublicKey::parse(&inner.public_key)?)
+                // Unwrap the response
+                let inner: GetPublicKeyReply = res.into_inner();
+                Ok(PublicKey::parse(&inner.public_key)?)
+            })
+            .await
     }
 
     async fn _sign_event(&self, unsigned: UnsignedEvent) -> Result<Event, Error> {
@@ -123,7 +130,12 @@ impl NostrSigner for AndroidSigner {
     }
 
     fn get_public_key(&self) -> BoxedFuture<Result<PublicKey, SignerError>> {
-        Box::pin(async move { self._get_public_key().await.map_err(SignerError::backend) })
+        Box::pin(async move {
+            self._get_public_key()
+                .await
+                .copied()
+                .map_err(SignerError::backend)
+        })
     }
 
     fn sign_event(&self, unsigned: UnsignedEvent) -> BoxedFuture<Result<Event, SignerError>> {
