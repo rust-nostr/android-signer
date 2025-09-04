@@ -13,17 +13,18 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.resume
 import rust.nostr.android.signer.proxy.ffi.NostrAndroidSignerProxyCallback
 import rust.nostr.android.signer.proxy.ffi.AndroidSignerProxyException
+import rust.nostr.android.signer.proxy.types.*
+
+private class PendingRequest(
+    val type: RequestType,
+    val continuation: kotlin.coroutines.Continuation<String>,
+    val params: RequestParams = RequestParams()
+)
 
 class NostrAndroidSignerProxyAdapter(private val context: Context, activity: ComponentActivity) :
     NostrAndroidSignerProxyCallback {
-    private var packageName: String? = null
 
-    // Generic request class (not data class to avoid conflicts)
-    private class PendingRequest(
-        val type: String,
-        val continuation: kotlin.coroutines.Continuation<String>,
-        val params: Map<String, String> = emptyMap()
-    )
+    private var packageName: String? = null
 
     // Queue for all requests
     private val requestQueue = mutableListOf<PendingRequest>()
@@ -49,259 +50,102 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         }
     }
 
-    private fun handleResult(
-        requestType: String,
-        data: Intent?,
-        continuation: kotlin.coroutines.Continuation<String>
-    ) {
-        when (requestType) {
-            "get_public_key" -> {
-                val publicKey: String? = data?.getStringExtra("result")
-                packageName = data?.getStringExtra("package")
-
-                if (publicKey != null) {
-                    continuation.resume(publicKey)
-                } else {
-                    val exception =
-                        AndroidSignerProxyException.Callback("No public key received from signer")
-                    continuation.resumeWithException(exception)
-                }
+    // Intent builders for different request types
+    private val intentBuilders = mapOf(
+        RequestType.GET_PUBLIC_KEY to { _ ->
+            Intent(Intent.ACTION_VIEW, "nostrsigner:".toUri()).apply {
+                putExtra("type", RequestType.GET_PUBLIC_KEY.value)
             }
+        },
+        RequestType.SIGN_EVENT to { params ->
+            RequestParamsValidator.validateSigningParams(params)
 
-            "sign_event" -> {
-                //val signature: String? = data?.getStringExtra("result")
-                val signedEventJson: String? = data?.getStringExtra("event")
-
-                if (signedEventJson != null) {
-                    continuation.resume(signedEventJson)
-                } else {
-                    val exception =
-                        AndroidSignerProxyException.Callback("No signature received from signer")
-                    continuation.resumeWithException(exception)
-                }
+            Intent(Intent.ACTION_VIEW, "nostrsigner:${params.unsigned}".toUri()).apply {
+                packageName?.let { `package` = it }
+                putExtra("type", RequestType.SIGN_EVENT.value)
             }
+        },
+        RequestType.NIP04_ENCRYPT to createEncryptionIntentBuilder(RequestType.NIP04_ENCRYPT),
+        RequestType.NIP04_DECRYPT to createDecryptionIntentBuilder(RequestType.NIP04_DECRYPT),
+        RequestType.NIP44_ENCRYPT to createEncryptionIntentBuilder(RequestType.NIP44_ENCRYPT),
+        RequestType.NIP44_DECRYPT to createDecryptionIntentBuilder(RequestType.NIP44_DECRYPT)
+    )
 
-            "nip04_encrypt" -> {
-                val encryptedText: String? = data?.getStringExtra("result")
+    // Result handlers for different request types
+    private val resultHandlers = mapOf(
+        RequestType.GET_PUBLIC_KEY to { data, continuation ->
+            val publicKey = data?.getStringExtra("result")
+            packageName = data?.getStringExtra("package")
 
-                if (encryptedText != null) {
-                    continuation.resume(encryptedText)
-                } else {
-                    val exception =
-                        AndroidSignerProxyException.Callback("No ciphertext received from signer")
-                    continuation.resumeWithException(exception)
-                }
+            if (publicKey != null) {
+                continuation.resume(publicKey)
+            } else {
+                continuation.resumeWithException(
+                    AndroidSignerProxyException.Callback("No public key received from signer")
+                )
             }
+        },
+        RequestType.SIGN_EVENT to { data, continuation ->
+            val signedEventJson = data?.getStringExtra("event")
 
-            "nip04_decrypt" -> {
-                val plaintext: String? = data?.getStringExtra("result")
-
-                if (plaintext != null) {
-                    continuation.resume(plaintext)
-                } else {
-                    val exception =
-                        AndroidSignerProxyException.Callback("No plaintext received from signer")
-                    continuation.resumeWithException(exception)
-                }
+            if (signedEventJson != null) {
+                continuation.resume(signedEventJson)
+            } else {
+                continuation.resumeWithException(
+                    AndroidSignerProxyException.Callback("No signature received from signer")
+                )
             }
+        },
+        RequestType.NIP04_ENCRYPT to createEncryptionHandler(),
+        RequestType.NIP04_DECRYPT to createDecryptionHandler(),
+        RequestType.NIP44_ENCRYPT to createEncryptionHandler(),
+        RequestType.NIP44_DECRYPT to createDecryptionHandler()
+    )
 
-            "nip44_encrypt" -> {
-                val encryptedText: String? = data?.getStringExtra("result")
+    private fun createEncryptionIntentBuilder(requestType: RequestType): IntentBuilder = { params ->
+        RequestParamsValidator.validateEncryptionParams(params, requestType.value)
 
-                if (encryptedText != null) {
-                    continuation.resume(encryptedText)
-                } else {
-                    val exception =
-                        AndroidSignerProxyException.Callback("No ciphertext received from signer")
-                    continuation.resumeWithException(exception)
-                }
-            }
-
-            "nip44_decrypt" -> {
-                val plaintext: String? = data?.getStringExtra("result")
-
-                if (plaintext != null) {
-                    continuation.resume(plaintext)
-                } else {
-                    val exception =
-                        AndroidSignerProxyException.Callback("No plaintext received from signer")
-                    continuation.resumeWithException(exception)
-                }
-            }
-
-            else -> {
-                val exception =
-                    AndroidSignerProxyException.Callback("Unknown request type: $requestType")
-                continuation.resumeWithException(exception)
-            }
+        Intent(Intent.ACTION_VIEW, "nostrsigner:${params.plaintext}".toUri()).apply {
+            packageName?.let { `package` = it }
+            putExtra("type", requestType.value)
+            putExtra("current_user", params.currentUserPubkey)
+            putExtra("pubkey", params.otherPublicKey)
         }
     }
 
-    private fun processNextRequest() {
-        val nextRequest = requestQueue.firstOrNull()
-        if (nextRequest != null && !isRequestInProgress) {
-            isRequestInProgress = true
-            launchRequest(nextRequest)
+    private fun createDecryptionIntentBuilder(requestType: RequestType): IntentBuilder = { params ->
+        RequestParamsValidator.validateDecryptionParams(params, requestType.value)
+
+        Intent(Intent.ACTION_VIEW, "nostrsigner:${params.ciphertext}".toUri()).apply {
+            packageName?.let { `package` = it }
+            putExtra("type", requestType.value)
+            putExtra("current_user", params.currentUserPubkey)
+            putExtra("pubkey", params.otherPublicKey)
+        }
+    }
+
+    private fun createEncryptionHandler(): ResultHandler = { data, continuation ->
+        val result = data?.getStringExtra("result")
+        if (result != null) {
+            continuation.resume(result)
         } else {
-            isRequestInProgress = false
+            continuation.resumeWithException(AndroidSignerProxyException.Callback("No ciphertext received from signer"))
         }
     }
 
-    private fun launchRequest(request: PendingRequest) {
-        val intent = when (request.type) {
-            "get_public_key" -> {
-                Intent(Intent.ACTION_VIEW, "nostrsigner:".toUri()).apply {
-                    // Set request type
-                    putExtra("type", "get_public_key")
-                }
-            }
-
-            "sign_event" -> {
-                val unsignedEvent = request.params["unsigned"]
-
-                if (unsignedEvent == null) {
-                    throw IllegalArgumentException("unsigned event is required for sign_event request")
-                }
-
-                Intent(Intent.ACTION_VIEW, "nostrsigner:$unsignedEvent".toUri()).apply {
-                    // Set package name
-                    packageName?.let { `package` = it }
-
-                    // Set request type
-                    putExtra("type", "sign_event")
-                }
-            }
-
-            "nip04_encrypt" -> {
-                val currentUserPublicKey = request.params["current_user_pubkey"]
-                val otherPublicKey = request.params["other_public_key"]
-                val plaintext = request.params["plaintext"]
-
-                if (currentUserPublicKey == null) {
-                    throw IllegalArgumentException("Current user public key is required for nip04_encrypt request")
-                }
-
-                if (otherPublicKey == null) {
-                    throw IllegalArgumentException("Other user public key is required for nip04_encrypt request")
-                }
-
-                if (plaintext == null) {
-                    throw IllegalArgumentException("Plaintext is required for nip04_encrypt request")
-                }
-
-                Intent(Intent.ACTION_VIEW, "nostrsigner:$plaintext".toUri()).apply {
-                    // Set package name
-                    packageName?.let { `package` = it }
-
-                    // Set request type
-                    putExtra("type", "nip04_encrypt")
-
-                    // Add data
-                    putExtra("current_user", currentUserPublicKey)
-                    putExtra("pubkey", otherPublicKey)
-                }
-            }
-
-            "nip04_decrypt" -> {
-                val currentUserPublicKey = request.params["current_user_pubkey"]
-                val otherPublicKey = request.params["other_public_key"]
-                val ciphertext = request.params["ciphertext"]
-
-                if (currentUserPublicKey == null) {
-                    throw IllegalArgumentException("Current user public key is required for nip04_decrypt request")
-                }
-
-                if (otherPublicKey == null) {
-                    throw IllegalArgumentException("Other user public key is required for nip04_decrypt request")
-                }
-
-                if (ciphertext == null) {
-                    throw IllegalArgumentException("Ciphertext is required for nip04_decrypt request")
-                }
-
-                Intent(Intent.ACTION_VIEW, "nostrsigner:$ciphertext".toUri()).apply {
-                    // Set package name
-                    packageName?.let { `package` = it }
-
-                    // Set request type
-                    putExtra("type", "nip04_decrypt")
-
-                    // Add data
-                    putExtra("current_user", currentUserPublicKey)
-                    putExtra("pubkey", otherPublicKey)
-                }
-            }
-
-            "nip44_encrypt" -> {
-                val currentUserPublicKey = request.params["current_user_pubkey"]
-                val otherPublicKey = request.params["other_public_key"]
-                val plaintext = request.params["plaintext"]
-
-                if (currentUserPublicKey == null) {
-                    throw IllegalArgumentException("Current user public key is required for nip44_encrypt request")
-                }
-
-                if (otherPublicKey == null) {
-                    throw IllegalArgumentException("Other user public key is required for nip44_encrypt request")
-                }
-
-                if (plaintext == null) {
-                    throw IllegalArgumentException("Plaintext is required for nip44_encrypt request")
-                }
-
-                Intent(Intent.ACTION_VIEW, "nostrsigner:$plaintext".toUri()).apply {
-                    // Set package name
-                    packageName?.let { `package` = it }
-
-                    // Set request type
-                    putExtra("type", "nip44_encrypt")
-
-                    // Add data
-                    putExtra("current_user", currentUserPublicKey)
-                    putExtra("pubkey", otherPublicKey)
-                }
-            }
-
-            "nip44_decrypt" -> {
-                val currentUserPublicKey = request.params["current_user_pubkey"]
-                val otherPublicKey = request.params["other_public_key"]
-                val ciphertext = request.params["ciphertext"]
-
-                if (currentUserPublicKey == null) {
-                    throw IllegalArgumentException("Current user public key is required for nip44_decrypt request")
-                }
-
-                if (otherPublicKey == null) {
-                    throw IllegalArgumentException("Other user public key is required for nip44_decrypt request")
-                }
-
-                if (ciphertext == null) {
-                    throw IllegalArgumentException("Ciphertext is required for nip44_decrypt request")
-                }
-
-                Intent(Intent.ACTION_VIEW, "nostrsigner:$ciphertext".toUri()).apply {
-                    // Set package name
-                    packageName?.let { `package` = it }
-
-                    // Set request type
-                    putExtra("type", "nip44_decrypt")
-
-                    // Add data
-                    putExtra("current_user", currentUserPublicKey)
-                    putExtra("pubkey", otherPublicKey)
-                }
-            }
-
-            else -> throw IllegalArgumentException("Unknown request type: ${request.type}")
+    private fun createDecryptionHandler(): ResultHandler = { data, continuation ->
+        val result = data?.getStringExtra("result")
+        if (result != null) {
+            continuation.resume(result)
+        } else {
+            continuation.resumeWithException(AndroidSignerProxyException.Callback("No plaintext received from signer"))
         }
-
-        signerLauncher.launch(intent)
     }
 
     // Generic method to queue requests
     private suspend fun queueRequest(
-        requestType: String,
-        params: Map<String, String> = emptyMap()
+        requestType: RequestType,
+        params: RequestParams = RequestParams()
     ): String = withContext(Dispatchers.Main) {
         return@withContext suspendCancellableCoroutine { continuation ->
             val request = PendingRequest(requestType, continuation, params)
@@ -318,6 +162,39 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         }
     }
 
+    private fun launchRequest(request: PendingRequest) {
+        val intentBuilder = intentBuilders[request.type]
+            ?: throw IllegalArgumentException("Unknown request type: ${request.type.value}")
+
+        val intent = intentBuilder(request.params)
+        signerLauncher.launch(intent)
+    }
+
+    private fun processNextRequest() {
+        val nextRequest = requestQueue.firstOrNull()
+        if (nextRequest != null && !isRequestInProgress) {
+            isRequestInProgress = true
+            launchRequest(nextRequest)
+        } else {
+            isRequestInProgress = false
+        }
+    }
+
+    private fun handleResult(
+        requestType: RequestType,
+        data: Intent?,
+        continuation: kotlin.coroutines.Continuation<String>
+    ) {
+        val handler = resultHandlers[requestType]
+        if (handler != null) {
+            handler(data, continuation)
+        } else {
+            continuation.resumeWithException(
+                AndroidSignerProxyException.Callback("Unknown request type: ${requestType.value}")
+            )
+        }
+    }
+
     override suspend fun isExternalSignerInstalled(): Boolean = withContext(Dispatchers.IO) {
         val intent = Intent().apply {
             action = Intent.ACTION_VIEW
@@ -328,11 +205,11 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     }
 
     override suspend fun getPublicKey(): String {
-        return queueRequest("get_public_key")
+        return queueRequest(RequestType.GET_PUBLIC_KEY)
     }
 
     override suspend fun signEvent(unsigned: String): String {
-        return queueRequest("sign_event", mapOf("unsigned" to unsigned))
+        return queueRequest(RequestType.SIGN_EVENT, RequestParams.forSigning(unsigned))
     }
 
     override suspend fun nip04Encrypt(
@@ -341,12 +218,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         plaintext: String
     ): String {
         return queueRequest(
-            "nip04_encrypt",
-            mapOf(
-                "current_user_pubkey" to currentUserPublicKey,
-                "other_public_key" to otherUserPublicKey,
-                "plaintext" to plaintext
-            )
+            RequestType.NIP04_ENCRYPT,
+            RequestParams.forEncryption(currentUserPublicKey, otherUserPublicKey, plaintext)
         )
     }
 
@@ -356,12 +229,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         ciphertext: String
     ): String {
         return queueRequest(
-            "nip04_decrypt",
-            mapOf(
-                "current_user_pubkey" to currentUserPublicKey,
-                "other_public_key" to otherUserPublicKey,
-                "ciphertext" to ciphertext
-            )
+            RequestType.NIP04_DECRYPT,
+            RequestParams.forDecryption(currentUserPublicKey, otherUserPublicKey, ciphertext)
         )
     }
 
@@ -371,12 +240,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         plaintext: String
     ): String {
         return queueRequest(
-            "nip44_encrypt",
-            mapOf(
-                "current_user_pubkey" to currentUserPublicKey,
-                "other_public_key" to otherUserPublicKey,
-                "plaintext" to plaintext
-            )
+            RequestType.NIP44_ENCRYPT,
+            RequestParams.forEncryption(currentUserPublicKey, otherUserPublicKey, plaintext)
         )
     }
 
@@ -386,12 +251,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         ciphertext: String
     ): String {
         return queueRequest(
-            "nip44_decrypt",
-            mapOf(
-                "current_user_pubkey" to currentUserPublicKey,
-                "other_public_key" to otherUserPublicKey,
-                "ciphertext" to ciphertext
-            )
+            RequestType.NIP44_DECRYPT,
+            RequestParams.forDecryption(currentUserPublicKey, otherUserPublicKey, ciphertext)
         )
     }
 }
