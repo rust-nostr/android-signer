@@ -17,23 +17,42 @@ import rust.nostr.android.signer.proxy.ffi.AndroidSignerProxyException
 class NostrAndroidSignerProxyAdapter(private val context: Context, activity: ComponentActivity): NostrAndroidSignerProxyCallback {
     private var packageName: String? = null
 
-    // Keep track of the current continuation
-    private var publicKeyContinuation: kotlin.coroutines.Continuation<String>? = null
-    private var signEventContinuation: kotlin.coroutines.Continuation<String>? = null
+    // Generic request class (not data class to avoid conflicts)
+    private class PendingRequest(
+        val type: String,
+        val continuation: kotlin.coroutines.Continuation<String>,
+        val data: String? = null
+    )
 
+    // Queue for all requests
+    private val requestQueue = mutableListOf<PendingRequest>()
+    private var isRequestInProgress = false
 
-    // Pre-register the launcher during initialization
-    private val publicKeyLauncher = activity.registerForActivityResult(
+    // Single launcher for all requests
+    private val signerLauncher = activity.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        publicKeyContinuation?.let { continuation ->
+        val currentRequest = requestQueue.firstOrNull()
+        currentRequest?.let { request ->
+            requestQueue.removeAt(0)
+
             if (result.resultCode != Activity.RESULT_OK) {
                 val exception = AndroidSignerProxyException.Callback("Request rejected")
-                continuation.resumeWithException(exception)
+                request.continuation.resumeWithException(exception)
             } else {
-                // Get public key
-                val publicKey: String? = result.data?.getStringExtra("result")
-                packageName = result.data?.getStringExtra("package")
+                handleResult(request.type, result.data, request.continuation)
+            }
+
+            // Process next request
+            processNextRequest()
+        }
+    }
+
+    private fun handleResult(requestType: String, data: Intent?, continuation: kotlin.coroutines.Continuation<String>) {
+        when (requestType) {
+            "get_public_key" -> {
+                val publicKey: String? = data?.getStringExtra("result")
+                packageName = data?.getStringExtra("package")
 
                 if (publicKey != null) {
                     continuation.resume(publicKey)
@@ -42,79 +61,94 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                     continuation.resumeWithException(exception)
                 }
             }
-            publicKeyContinuation = null
-        }
-    }
-
-    // Pre-register the launcher for sign event
-    private val signEventLauncher = activity.registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        signEventContinuation?.let { continuation ->
-            if (result.resultCode != Activity.RESULT_OK) {
-                val exception = AndroidSignerProxyException.Callback("Request rejected")
-                continuation.resumeWithException(exception)
-            } else {
-                //val signature: String? = result.data?.getStringExtra("result")
-                val signedEventJson: String? = result.data?.getStringExtra("event")
+            "sign_event" -> {
+                //val signature: String? = data?.getStringExtra("result")
+                val signedEventJson: String? = data?.getStringExtra("event")
 
                 if (signedEventJson != null) {
                     continuation.resume(signedEventJson)
                 } else {
-                    val exception = AndroidSignerProxyException.Callback("No event received from signer")
+                    val exception = AndroidSignerProxyException.Callback("No signature received from signer")
                     continuation.resumeWithException(exception)
                 }
             }
-            signEventContinuation = null
+            else -> {
+                val exception = AndroidSignerProxyException.Callback("Unknown request type: $requestType")
+                continuation.resumeWithException(exception)
+            }
         }
     }
 
+    private fun processNextRequest() {
+        val nextRequest = requestQueue.firstOrNull()
+        if (nextRequest != null && !isRequestInProgress) {
+            isRequestInProgress = true
+            launchRequest(nextRequest)
+        } else {
+            isRequestInProgress = false
+        }
+    }
+
+    private fun launchRequest(request: PendingRequest) {
+        val intent = when (request.type) {
+            "get_public_key" -> {
+                Intent(Intent.ACTION_VIEW, "nostrsigner:".toUri()).apply {
+                    putExtra("type", "get_public_key")
+                }
+            }
+            "sign_event" -> {
+                val unsignedEvent = request.data
+
+                if (unsignedEvent == null) {
+                    throw IllegalArgumentException("unsigned event is required for sign_event request")
+                }
+
+                Intent(Intent.ACTION_VIEW, "nostrsigner:$unsignedEvent".toUri()).apply {
+                    packageName?.let { `package` = it }
+                    putExtra("type", "sign_event")
+                }
+            }
+            // Add other request types here
+            else -> throw IllegalArgumentException("Unknown request type: ${request.type}")
+        }
+
+        signerLauncher.launch(intent)
+    }
+
+    // Generic method to queue requests
+    private suspend fun queueRequest(
+        requestType: String,
+        data: String? = null
+    ): String = withContext(Dispatchers.Main) {
+        return@withContext suspendCancellableCoroutine { continuation ->
+            val request = PendingRequest(requestType, continuation, data)
+
+            requestQueue.add(request)
+
+            continuation.invokeOnCancellation {
+                requestQueue.removeAll { it.continuation == continuation }
+            }
+
+            if (!isRequestInProgress) {
+                processNextRequest()
+            }
+        }
+    }
 
     override suspend fun isExternalSignerInstalled(): Boolean = withContext(Dispatchers.IO) {
-        val intent =
-            Intent().apply {
-                action = Intent.ACTION_VIEW
-                data = "nostrsigner:".toUri()
-            }
+        val intent = Intent().apply {
+            action = Intent.ACTION_VIEW
+            data = "nostrsigner:".toUri()
+        }
         val infos = context.packageManager.queryIntentActivities(intent, 0)
         return@withContext infos.isNotEmpty()
     }
 
-    override suspend fun getPublicKey(): String = withContext(Dispatchers.Main) {
-        return@withContext suspendCancellableCoroutine { continuation ->
-            // Store the continuation for the callback to use
-            publicKeyContinuation = continuation
-
-            val intent = Intent(Intent.ACTION_VIEW, "nostrsigner:".toUri()).apply {
-                putExtra("type", "get_public_key")
-            }
-
-            publicKeyLauncher.launch(intent)
-
-            // Set up cancellation handling
-            continuation.invokeOnCancellation {
-                publicKeyContinuation = null
-            }
-        }
+    override suspend fun getPublicKey(): String {
+        return queueRequest("get_public_key")
     }
 
-    override suspend fun signEvent(unsigned: String): String = withContext(Dispatchers.Main) {
-        return@withContext suspendCancellableCoroutine { continuation ->
-            // Store the continuation for the callback to use
-            signEventContinuation = continuation
-
-            val intent = Intent(Intent.ACTION_VIEW, "nostrsigner:$unsigned".toUri()).apply {
-                packageName?.let { `package` = it }
-                putExtra("type", "sign_event")
-            }
-
-            signEventLauncher.launch(intent)
-
-            // Set up cancellation handling
-            continuation.invokeOnCancellation {
-                signEventContinuation = null
-            }
-        }
+    override suspend fun signEvent(unsigned: String): String {
+        return queueRequest("sign_event", unsigned)
     }
-
 }
