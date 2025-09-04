@@ -14,7 +14,7 @@ import kotlin.coroutines.resume
 import rust.nostr.android.signer.proxy.ffi.NostrAndroidSignerProxyCallback
 import rust.nostr.android.signer.proxy.ffi.AndroidSignerProxyException
 
-class NostrAndroidSignerProxyMiddleware(private val context: Context, activity: ComponentActivity): NostrAndroidSignerProxyCallback {
+class NostrAndroidSignerProxyAdapter(private val context: Context, activity: ComponentActivity): NostrAndroidSignerProxyCallback {
     private var packageName: String? = null
 
     // Keep track of the current continuation
