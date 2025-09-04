@@ -14,6 +14,67 @@ Nostr Android signer implementation ([NIP-55](https://github.com/nostr-protocol/
 [proxy/ffi]: proxy/ffi
 [signer]: signer
 
+## Getting started
+
+### Kotlin
+
+Add the following to your `build.gradle.kts` file:
+
+```kotlin
+repositories {
+    mavenCentral()
+}
+
+dependencies { 
+    implementation("org.rust-nostr:android-signer-proxy:<version>")
+}
+```
+
+You can find the latest version at <https://central.sonatype.com/artifact/org.rust-nostr/android-signer-proxy>.
+
+Then, in your Android code:
+
+```kotlin
+package com.example.yourpackage
+
+// ...
+import android.os.Bundle
+import rust.nostr.android.signer.proxy.NostrAndroidSignerProxyServer
+
+class MainActivity : <ComponentActity>() {
+    private var proxy: NostrAndroidSignerProxyServer? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Setup proxy
+        // THE SAME UNIQUE NAME MUST BE USED IN THE RUST SIDE!
+        val localProxy = NostrAndroidSignerProxyServer(context = applicationContext, this, "<unique-name>")
+        localProxy.start()        
+        proxy = localProxy
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        proxy?.stop()
+    }
+}
+```
+
+The `<ComponentActivity>()`, in the case of Flutter, is `FlutterFragmentActivity()`.
+
+### Rust
+
+Add the following to your `Cargo.toml` file:
+
+```toml
+[dependencies]
+nostr-android-signer = "<version>"
+```
+
+You can find the latest version at <https://crates.io/crates/nostr-android-signer>.
+
 ## State
 
 **These libraries are in ALPHA state**, things that are implemented generally work but the API will change in breaking ways.
