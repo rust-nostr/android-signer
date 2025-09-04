@@ -24,6 +24,12 @@ test:
 # Execute pre-commit tasks
 precommit: fmt check clippy test
 
+# Release rust crates
+[confirm]
+release-rust:
+    cargo publish -p nostr-android-signer-proto
+    cargo publish -p nostr-android-signer
+
 [private]
 build-ffi:
     cd proxy && bash build.sh
