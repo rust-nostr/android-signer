@@ -1081,7 +1081,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-android-signer"
-version = "0.1.0"
+version = "0.43.0-alpha.1"
 dependencies = [
  "hyper-util",
  "nostr",
@@ -1094,7 +1094,7 @@ dependencies = [
 
 [[package]]
 name = "nostr-android-signer-proto"
-version = "0.1.0"
+version = "0.43.0-alpha.1"
 dependencies = [
  "prost",
  "tonic",
