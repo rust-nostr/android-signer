@@ -28,17 +28,13 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
 
-      - name: Install uniffi-bindgen
-        run: |
-          cargo install --bin uniffi-bindgen --path .
-
       - name: Build debug target
         run: |
           cargo build -p nostr_android_signer_proxy
 
       - name: Generate Android Kotlin
         run: |
-          uniffi-bindgen generate --library target/debug/libnostr_android_signer_proxy.so --config proxy/ffi/uniffi.toml --language kotlin --no-format -o target/uniffi/android-kotlin
+          cargo run -p uniffi-bindgen generate --library target/debug/libnostr_android_signer_proxy.so --config proxy/ffi/uniffi.toml --language kotlin --no-format -o target/uniffi/android-kotlin
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
