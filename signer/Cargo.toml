@@ -3,12 +3,12 @@ name = "nostr-android-signer"
 version = "0.1.0"
 edition = "2024"
 description = "Nostr Android signer (NIP-55)"
-authors = ["Yuki Kishimoto <yukikishimoto@protonmail.com>"]
-homepage = "https://github.com/rust-nostr/android-signer"
-repository = "https://github.com/rust-nostr/android-signer.git"
-license = "MIT"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
 readme = "README.md"
-rust-version = "1.85.0"
+rust-version.workspace = true
 keywords = ["nostr", "nip55", "android", "signer"]
 
 [dependencies]
