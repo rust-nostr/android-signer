@@ -41,7 +41,7 @@ dependencies {
     implementation(libs.appcompat)
 }
 
-val version: String = "0.43.0"
+val version: String = "0.43.0-alpha.1-SNAPSHOT"
 val isSnapshot: Boolean = version.contains("SNAPSHOT")
 
 mavenPublishing {

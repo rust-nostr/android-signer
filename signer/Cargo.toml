@@ -1,6 +1,6 @@
 [package]
 name = "nostr-android-signer"
-version = "0.1.0"
+version = "0.43.0-alpha.1"
 edition = "2024"
 description = "Nostr Android signer (NIP-55)"
 authors.workspace = true
