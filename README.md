@@ -41,7 +41,7 @@ package com.example.yourpackage
 import android.os.Bundle
 import rust.nostr.android.signer.proxy.NostrAndroidSignerProxyServer
 
-class MainActivity : <ComponentActity>() {
+class MainActivity : <ComponentActivity>() {
     private var proxy: NostrAndroidSignerProxyServer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
