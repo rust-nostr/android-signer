@@ -67,7 +67,7 @@ jobs:
       uses: arduino/setup-protoc@v3
 
     - name: Install cargo-ndk
-      run: cargo install cargo-ndk
+      run: cargo +stable install cargo-ndk
 
     - name: Setup NDK
       uses: nttld/setup-ndk@v1
