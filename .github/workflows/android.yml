@@ -132,17 +132,9 @@ jobs:
           name: android-signer-aar
           path: proxy/lib/build/outputs/aar/lib-release.aar
 
-  publish:
-    name: Publish
-    runs-on: ubuntu-latest
-    needs: [build, build-aar]
-    if: ${{ inputs.publish }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Publish
         working-directory: proxy
+        if: ${{ inputs.publish }}
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_TOKEN_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_TOKEN_PASSWORD }}
