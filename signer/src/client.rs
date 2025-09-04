@@ -1,10 +1,13 @@
+use std::borrow::Cow;
 use std::os::unix::net::UnixStream as StdUnixStream;
 use std::sync::Arc;
 
 use hyper_util::rt::TokioIo;
+use nostr::prelude::*;
 use nostr_android_signer_proto::android_signer_client::AndroidSignerClient;
 use nostr_android_signer_proto::{
-    IsExternalSignerInstalledReply, IsExternalSignerInstalledRequest,
+    GetPublicKeyReply, GetPublicKeyRequest, IsExternalSignerInstalledReply,
+    IsExternalSignerInstalledRequest,
 };
 use tokio::net::UnixStream as TokioUnixStream;
 use tokio::sync::{Mutex, OnceCell};
@@ -72,6 +75,68 @@ impl AndroidSigner {
         // Unwrap the response
         let inner: IsExternalSignerInstalledReply = res.into_inner();
         Ok(inner.installed)
+    }
+
+    async fn _get_public_key(&self) -> Result<PublicKey, Error> {
+        // Get the client
+        let client = self.client().await?;
+
+        // Acquire the lock
+        let mut client = client.lock().await;
+
+        // Make the request
+        let req: Request<GetPublicKeyRequest> = Request::new(GetPublicKeyRequest {});
+        let res: Response<GetPublicKeyReply> = client.get_public_key(req).await?;
+
+        // Unwrap the response
+        let inner: GetPublicKeyReply = res.into_inner();
+        Ok(PublicKey::parse(&inner.public_key)?)
+    }
+}
+
+impl NostrSigner for AndroidSigner {
+    fn backend(&self) -> SignerBackend {
+        SignerBackend::Custom(Cow::Borrowed("android signer"))
+    }
+
+    fn get_public_key(&self) -> BoxedFuture<Result<PublicKey, SignerError>> {
+        Box::pin(async move { self._get_public_key().await.map_err(SignerError::backend) })
+    }
+
+    fn sign_event(&self, _unsigned: UnsignedEvent) -> BoxedFuture<Result<Event, SignerError>> {
+        todo!()
+    }
+
+    fn nip04_encrypt<'a>(
+        &'a self,
+        _public_key: &'a PublicKey,
+        _content: &'a str,
+    ) -> BoxedFuture<'a, Result<String, SignerError>> {
+        todo!()
+    }
+
+    fn nip04_decrypt<'a>(
+        &'a self,
+        _public_key: &'a PublicKey,
+        _encrypted_content: &'a str,
+    ) -> BoxedFuture<'a, Result<String, SignerError>> {
+        todo!()
+    }
+
+    fn nip44_encrypt<'a>(
+        &'a self,
+        _public_key: &'a PublicKey,
+        _content: &'a str,
+    ) -> BoxedFuture<'a, Result<String, SignerError>> {
+        todo!()
+    }
+
+    fn nip44_decrypt<'a>(
+        &'a self,
+        _public_key: &'a PublicKey,
+        _payload: &'a str,
+    ) -> BoxedFuture<'a, Result<String, SignerError>> {
+        todo!()
     }
 }
 

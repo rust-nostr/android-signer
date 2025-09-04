@@ -13,6 +13,7 @@ keywords = ["nostr", "nip55", "android", "signer"]
 
 [dependencies]
 hyper-util = "0.1"
+nostr = { version = "0.43", features = ["std"] }
 nostr-android-signer-proto.workspace = true
 tokio = { workspace = true, features = ["net", "sync"] }
 tonic.workspace = true

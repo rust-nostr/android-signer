@@ -1,6 +1,7 @@
 package rust.nostr.android.signer.proxy
 
 import android.content.Context
+import androidx.activity.ComponentActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -9,12 +10,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import rust.nostr.android.signer.proxy.ffi.NostrAndroidSignerProxy
 
-class NostrAndroidSignerProxyWrapper(private val context: Context, private val uniqueName: String) {
+class NostrAndroidSignerProxyWrapper(private val context: Context, private val activity: ComponentActivity, private val uniqueName: String) {
     private var serverJob: Job? = null
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun start() {
-        val middleware = NostrAndroidSignerProxyMiddleware(context)
+        val middleware = NostrAndroidSignerProxyMiddleware(context, activity)
         val proxy = NostrAndroidSignerProxy(uniqueName, middleware)
 
         serverJob = coroutineScope.launch {

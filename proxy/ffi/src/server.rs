@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use nostr_android_signer_proto::android_signer_server::{AndroidSigner, AndroidSignerServer};
 use nostr_android_signer_proto::{
-    IsExternalSignerInstalledReply, IsExternalSignerInstalledRequest,
+    GetPublicKeyReply, GetPublicKeyRequest, IsExternalSignerInstalledReply,
+    IsExternalSignerInstalledRequest,
 };
 use tokio::net::UnixListener as TokioUnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
@@ -24,14 +25,18 @@ impl AndroidSigner for SignerAdapter {
         &self,
         _request: Request<IsExternalSignerInstalledRequest>,
     ) -> Result<Response<IsExternalSignerInstalledReply>, Status> {
-        let res: bool = self
-            .callback
-            .is_external_signer_installed()
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let res: bool = self.callback.is_external_signer_installed().await?;
         Ok(Response::new(IsExternalSignerInstalledReply {
             installed: res,
         }))
+    }
+
+    async fn get_public_key(
+        &self,
+        _request: Request<GetPublicKeyRequest>,
+    ) -> Result<Response<GetPublicKeyReply>, Status> {
+        let public_key: String = self.callback.get_public_key().await?;
+        Ok(Response::new(GetPublicKeyReply { public_key }))
     }
 }
 
@@ -90,4 +95,6 @@ fn bind_socket(socket_addr: &UnixSocketAddr) -> Result<TokioUnixListener, Androi
 #[async_trait::async_trait]
 pub trait NostrAndroidSignerProxyCallback: Send + Sync {
     async fn is_external_signer_installed(&self) -> Result<bool, AndroidSignerProxyError>;
+
+    async fn get_public_key(&self) -> Result<String, AndroidSignerProxyError>;
 }

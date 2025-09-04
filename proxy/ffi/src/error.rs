@@ -1,11 +1,13 @@
 use std::fmt;
 
+use tonic::Status;
 use uniffi::Error;
 
 #[derive(Debug, Error)]
 pub enum AndroidSignerProxyError {
     IO(String),
     Transport(String),
+    Callback(String),
 }
 
 impl fmt::Display for AndroidSignerProxyError {
@@ -13,6 +15,7 @@ impl fmt::Display for AndroidSignerProxyError {
         match self {
             Self::IO(e) => f.write_str(e),
             Self::Transport(e) => f.write_str(e),
+            Self::Callback(e) => f.write_str(e),
         }
     }
 }
@@ -26,5 +29,11 @@ impl From<std::io::Error> for AndroidSignerProxyError {
 impl From<tonic::transport::Error> for AndroidSignerProxyError {
     fn from(e: tonic::transport::Error) -> Self {
         Self::Transport(e.to_string())
+    }
+}
+
+impl From<AndroidSignerProxyError> for Status {
+    fn from(e: AndroidSignerProxyError) -> Self {
+        Status::internal(e.to_string())
     }
 }

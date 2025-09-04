@@ -1,5 +1,6 @@
 use std::{fmt, io};
 
+use nostr::key;
 use tonic::Status;
 
 /// Android signer error.
@@ -11,6 +12,8 @@ pub enum Error {
     Transport(tonic::transport::Error),
     /// Tonic status
     Status(Status),
+    /// Keys error
+    Keys(key::Error),
     /// Timeout
     Timeout,
 }
@@ -22,7 +25,8 @@ impl fmt::Display for Error {
         match self {
             Self::IO(e) => e.fmt(f),
             Self::Transport(e) => e.fmt(f),
-            Self::Status(s) => s.fmt(f),
+            Self::Status(status) => f.write_str(status.message()),
+            Self::Keys(e) => e.fmt(f),
             Self::Timeout => f.write_str("Timeout"),
         }
     }
@@ -43,5 +47,11 @@ impl From<tonic::transport::Error> for Error {
 impl From<Status> for Error {
     fn from(s: Status) -> Self {
         Self::Status(s)
+    }
+}
+
+impl From<key::Error> for Error {
+    fn from(e: key::Error) -> Self {
+        Self::Keys(e)
     }
 }
