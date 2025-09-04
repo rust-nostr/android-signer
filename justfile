@@ -23,3 +23,14 @@ test:
 
 # Execute pre-commit tasks
 precommit: fmt check clippy test
+
+[private]
+build-ffi:
+    cd proxy && bash build.sh
+
+[private]
+build-aar:
+    cd proxy && bash assemble.sh
+
+[private]
+aar: build-ffi build-aar
