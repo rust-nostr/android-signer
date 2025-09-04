@@ -64,6 +64,22 @@ class MainActivity : <ComponentActivity>() {
 
 The `<ComponentActivity>()`, in the case of Flutter, is `FlutterFragmentActivity()`.
 
+Finally, add the following to your `AndroidManifest.xml` file:
+
+```xml
+<manifest>
+    <!-- ... -->
+    <queries>
+        <!-- ... -->
+        <intent>
+          <action android:name="android.intent.action.VIEW" />
+          <category android:name="android.intent.category.BROWSABLE" />
+          <data android:scheme="nostrsigner" />
+        </intent>
+    </queries>
+</manifest>
+```
+
 ### Rust
 
 Add the following to your `Cargo.toml` file:
