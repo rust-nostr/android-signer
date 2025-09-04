@@ -14,14 +14,15 @@ import kotlin.coroutines.resume
 import rust.nostr.android.signer.proxy.ffi.NostrAndroidSignerProxyCallback
 import rust.nostr.android.signer.proxy.ffi.AndroidSignerProxyException
 
-class NostrAndroidSignerProxyAdapter(private val context: Context, activity: ComponentActivity): NostrAndroidSignerProxyCallback {
+class NostrAndroidSignerProxyAdapter(private val context: Context, activity: ComponentActivity) :
+    NostrAndroidSignerProxyCallback {
     private var packageName: String? = null
 
     // Generic request class (not data class to avoid conflicts)
     private class PendingRequest(
         val type: String,
         val continuation: kotlin.coroutines.Continuation<String>,
-        val data: String? = null
+        val params: Map<String, String> = emptyMap()
     )
 
     // Queue for all requests
@@ -48,7 +49,11 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         }
     }
 
-    private fun handleResult(requestType: String, data: Intent?, continuation: kotlin.coroutines.Continuation<String>) {
+    private fun handleResult(
+        requestType: String,
+        data: Intent?,
+        continuation: kotlin.coroutines.Continuation<String>
+    ) {
         when (requestType) {
             "get_public_key" -> {
                 val publicKey: String? = data?.getStringExtra("result")
@@ -57,10 +62,12 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                 if (publicKey != null) {
                     continuation.resume(publicKey)
                 } else {
-                    val exception = AndroidSignerProxyException.Callback("No public key received from signer")
+                    val exception =
+                        AndroidSignerProxyException.Callback("No public key received from signer")
                     continuation.resumeWithException(exception)
                 }
             }
+
             "sign_event" -> {
                 //val signature: String? = data?.getStringExtra("result")
                 val signedEventJson: String? = data?.getStringExtra("event")
@@ -68,12 +75,27 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                 if (signedEventJson != null) {
                     continuation.resume(signedEventJson)
                 } else {
-                    val exception = AndroidSignerProxyException.Callback("No signature received from signer")
+                    val exception =
+                        AndroidSignerProxyException.Callback("No signature received from signer")
                     continuation.resumeWithException(exception)
                 }
             }
+
+            "nip04_encrypt" -> {
+                val encryptedText: String? = data?.getStringExtra("result")
+
+                if (encryptedText != null) {
+                    continuation.resume(encryptedText)
+                } else {
+                    val exception =
+                        AndroidSignerProxyException.Callback("No ciphertext received from signer")
+                    continuation.resumeWithException(exception)
+                }
+            }
+
             else -> {
-                val exception = AndroidSignerProxyException.Callback("Unknown request type: $requestType")
+                val exception =
+                    AndroidSignerProxyException.Callback("Unknown request type: $requestType")
                 continuation.resumeWithException(exception)
             }
         }
@@ -93,22 +115,57 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         val intent = when (request.type) {
             "get_public_key" -> {
                 Intent(Intent.ACTION_VIEW, "nostrsigner:".toUri()).apply {
+                    // Set request type
                     putExtra("type", "get_public_key")
                 }
             }
+
             "sign_event" -> {
-                val unsignedEvent = request.data
+                val unsignedEvent = request.params["unsigned"]
 
                 if (unsignedEvent == null) {
                     throw IllegalArgumentException("unsigned event is required for sign_event request")
                 }
 
                 Intent(Intent.ACTION_VIEW, "nostrsigner:$unsignedEvent".toUri()).apply {
+                    // Set package name
                     packageName?.let { `package` = it }
+
+                    // Set request type
                     putExtra("type", "sign_event")
                 }
             }
-            // Add other request types here
+
+            "nip04_encrypt" -> {
+                val currentUserPublicKey = request.params["current_user_pubkey"]
+                val otherPublicKey = request.params["other_public_key"]
+                val plaintext = request.params["plaintext"]
+
+                if (currentUserPublicKey == null) {
+                    throw IllegalArgumentException("Current user public key is required for nip04_encrypt request")
+                }
+
+                if (otherPublicKey == null) {
+                    throw IllegalArgumentException("Other user public key is required for nip04_encrypt request")
+                }
+
+                if (plaintext == null) {
+                    throw IllegalArgumentException("Plaintext is required for nip04_encrypt request")
+                }
+
+                Intent(Intent.ACTION_VIEW, "nostrsigner:$plaintext".toUri()).apply {
+                    // Set package name
+                    packageName?.let { `package` = it }
+
+                    // Set request type
+                    putExtra("type", "nip04_encrypt")
+
+                    // Add data
+                    putExtra("current_user", currentUserPublicKey)
+                    putExtra("pubkey", otherPublicKey)
+                }
+            }
+
             else -> throw IllegalArgumentException("Unknown request type: ${request.type}")
         }
 
@@ -118,10 +175,10 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     // Generic method to queue requests
     private suspend fun queueRequest(
         requestType: String,
-        data: String? = null
+        params: Map<String, String> = emptyMap()
     ): String = withContext(Dispatchers.Main) {
         return@withContext suspendCancellableCoroutine { continuation ->
-            val request = PendingRequest(requestType, continuation, data)
+            val request = PendingRequest(requestType, continuation, params)
 
             requestQueue.add(request)
 
@@ -149,6 +206,21 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     }
 
     override suspend fun signEvent(unsigned: String): String {
-        return queueRequest("sign_event", unsigned)
+        return queueRequest("sign_event", mapOf("unsigned" to unsigned))
+    }
+
+    override suspend fun nip04Encrypt(
+        currentUserPublicKey: String,
+        otherUserPublicKey: String,
+        plaintext: String
+    ): String {
+        return queueRequest(
+            "nip04_encrypt",
+            mapOf(
+                "current_user_pubkey" to currentUserPublicKey,
+                "other_public_key" to otherUserPublicKey,
+                "plaintext" to plaintext
+            )
+        )
     }
 }

@@ -8,6 +8,8 @@ service AndroidSigner {
   rpc GetPublicKey (GetPublicKeyRequest) returns (GetPublicKeyReply) {}
 
   rpc SignEvent (SignEventRequest) returns (SignEventReply) {}
+
+  rpc Nip04Encrypt (Nip04EncryptRequest) returns (Nip04EncryptReply) {}
 }
 
 message IsExternalSignerInstalledRequest {}
@@ -30,4 +32,14 @@ message SignEventRequest {
 message SignEventReply {
   // The event JSON
   string event = 1;
+}
+
+message Nip04EncryptRequest {
+  string current_user_public_key = 1;
+  string other_public_key = 2;
+  string plaintext = 3;
+}
+
+message Nip04EncryptReply {
+  string ciphertext = 1;
 }

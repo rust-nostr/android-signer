@@ -4,7 +4,8 @@ use std::sync::Arc;
 use nostr_android_signer_proto::android_signer_server::{AndroidSigner, AndroidSignerServer};
 use nostr_android_signer_proto::{
     GetPublicKeyReply, GetPublicKeyRequest, IsExternalSignerInstalledReply,
-    IsExternalSignerInstalledRequest, SignEventReply, SignEventRequest,
+    IsExternalSignerInstalledRequest, Nip04EncryptReply, Nip04EncryptRequest, SignEventReply,
+    SignEventRequest,
 };
 use tokio::net::UnixListener as TokioUnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
@@ -46,6 +47,22 @@ impl AndroidSigner for SignerAdapter {
         let req: SignEventRequest = request.into_inner();
         let event: String = self.callback.sign_event(req.unsigned_event).await?;
         Ok(Response::new(SignEventReply { event }))
+    }
+
+    async fn nip04_encrypt(
+        &self,
+        request: Request<Nip04EncryptRequest>,
+    ) -> Result<Response<Nip04EncryptReply>, Status> {
+        let req: Nip04EncryptRequest = request.into_inner();
+        let ciphertext: String = self
+            .callback
+            .nip04_encrypt(
+                req.current_user_public_key,
+                req.other_public_key,
+                req.plaintext,
+            )
+            .await?;
+        Ok(Response::new(Nip04EncryptReply { ciphertext }))
     }
 }
 
@@ -108,4 +125,11 @@ pub trait NostrAndroidSignerProxyCallback: Send + Sync {
     async fn get_public_key(&self) -> Result<String, AndroidSignerProxyError>;
 
     async fn sign_event(&self, unsigned: String) -> Result<String, AndroidSignerProxyError>;
+
+    async fn nip04_encrypt(
+        &self,
+        current_user_public_key: String,
+        other_user_public_key: String,
+        plaintext: String,
+    ) -> Result<String, AndroidSignerProxyError>;
 }
