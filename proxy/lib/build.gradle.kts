@@ -36,9 +36,9 @@ android {
 }
 
 dependencies {
-    implementation(libs.jna)
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.appcompat)
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("androidx.appcompat:appcompat:1.7.1")
 }
 
 val version: String = "0.43.0-alpha.1-SNAPSHOT"
