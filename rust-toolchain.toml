@@ -2,3 +2,9 @@
 channel = "1.85.0" # MSRV
 profile = "minimal"
 components = ["clippy", "rustfmt"]
+targets = [
+    "aarch64-linux-android",
+    "armv7-linux-androideabi",
+    "x86_64-linux-android",
+    "i686-linux-android",
+]
