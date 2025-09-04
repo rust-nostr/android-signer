@@ -7,8 +7,8 @@ use nostr::prelude::*;
 use nostr_android_signer_proto::android_signer_client::AndroidSignerClient;
 use nostr_android_signer_proto::{
     GetPublicKeyReply, GetPublicKeyRequest, IsExternalSignerInstalledReply,
-    IsExternalSignerInstalledRequest, Nip04EncryptReply, Nip04EncryptRequest, SignEventReply,
-    SignEventRequest,
+    IsExternalSignerInstalledRequest, Nip04DecryptReply, Nip04DecryptRequest, Nip04EncryptReply,
+    Nip04EncryptRequest, SignEventReply, SignEventRequest,
 };
 use tokio::net::UnixStream as TokioUnixStream;
 use tokio::sync::{Mutex, OnceCell};
@@ -148,6 +148,31 @@ impl AndroidSigner {
         let inner: Nip04EncryptReply = res.into_inner();
         Ok(inner.ciphertext)
     }
+
+    async fn _nip04_decrypt(
+        &self,
+        current_user_public_key: &PublicKey,
+        public_key: &PublicKey,
+        ciphertext: &str,
+    ) -> Result<String, Error> {
+        // Get the client
+        let client = self.client().await?;
+
+        // Acquire the lock
+        let mut client = client.lock().await;
+
+        // Make the request
+        let req: Request<Nip04DecryptRequest> = Request::new(Nip04DecryptRequest {
+            current_user_public_key: current_user_public_key.to_hex(),
+            other_public_key: public_key.to_hex(),
+            ciphertext: ciphertext.to_string(),
+        });
+        let res: Response<Nip04DecryptReply> = client.nip04_decrypt(req).await?;
+
+        // Unwrap the response
+        let inner: Nip04DecryptReply = res.into_inner();
+        Ok(inner.plaintext)
+    }
 }
 
 impl NostrSigner for AndroidSigner {
@@ -188,10 +213,16 @@ impl NostrSigner for AndroidSigner {
 
     fn nip04_decrypt<'a>(
         &'a self,
-        _public_key: &'a PublicKey,
-        _encrypted_content: &'a str,
+        public_key: &'a PublicKey,
+        encrypted_content: &'a str,
     ) -> BoxedFuture<'a, Result<String, SignerError>> {
-        todo!()
+        Box::pin(async move {
+            let current_user_public_key =
+                self._get_public_key().await.map_err(SignerError::backend)?;
+            self._nip04_decrypt(current_user_public_key, public_key, encrypted_content)
+                .await
+                .map_err(SignerError::backend)
+        })
     }
 
     fn nip44_encrypt<'a>(

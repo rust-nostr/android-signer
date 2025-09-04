@@ -10,6 +10,8 @@ service AndroidSigner {
   rpc SignEvent (SignEventRequest) returns (SignEventReply) {}
 
   rpc Nip04Encrypt (Nip04EncryptRequest) returns (Nip04EncryptReply) {}
+
+  rpc Nip04Decrypt (Nip04DecryptRequest) returns (Nip04DecryptReply) {}
 }
 
 message IsExternalSignerInstalledRequest {}
@@ -42,4 +44,14 @@ message Nip04EncryptRequest {
 
 message Nip04EncryptReply {
   string ciphertext = 1;
+}
+
+message Nip04DecryptRequest {
+  string current_user_public_key = 1;
+  string other_public_key = 2;
+  string ciphertext = 3;
+}
+
+message Nip04DecryptReply {
+  string plaintext = 1;
 }
