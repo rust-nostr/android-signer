@@ -2,7 +2,7 @@
 members = [
     "proto",
     "proxy/ffi",
-    "proxy/uniffi-bindgen",
+    "proxy/bindgen",
     "signer"
 ]
 resolver = "2"
