@@ -28,8 +28,14 @@ jobs:
         run: cargo +nightly fmt --all --check -- --config format_code_in_doc_comments=true
 
   check:
-    name: Check
+    name: Check crates
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        crate:
+          - nostr-android-signer-proto
+          - nostr-android-signer-proxy
+          - nostr-android-signer
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -37,21 +43,16 @@ jobs:
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2.7.8
       with:
-        workspaces: signer
+        key: ${{ matrix.crate }}
 
-    - name: Install protoc
-      run: |
-        sudo apt-get update && sudo apt-get upgrade -y
-        sudo apt-get install -y protobuf-compiler libprotobuf-dev
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v3
 
     - name: Check
-      working-directory: signer
-      run: cargo check
+      run: cargo check -p ${{ matrix.crate }}
 
     - name: Clippy
-      working-directory: signer
-      run: cargo clippy -- -D warnings
+      run: cargo clippy -p ${{ matrix.crate }} -- -D warnings
 
     - name: Test
-      working-directory: signer
-      run: cargo test
+      run: cargo test -p ${{ matrix.crate }}
