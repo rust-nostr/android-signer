@@ -1,3 +1,5 @@
+//! Android signer error
+
 use std::{fmt, io};
 
 use nostr::{event, key};

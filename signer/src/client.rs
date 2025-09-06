@@ -1,3 +1,5 @@
+//! Android signer client
+
 use std::borrow::Cow;
 use std::os::unix::net::UnixStream as StdUnixStream;
 use std::sync::Arc;
@@ -20,6 +22,7 @@ use uds::{UnixSocketAddr, UnixStreamExt};
 
 use crate::error::Error;
 
+/// Android signer client.
 #[derive(Debug, Clone)]
 pub struct AndroidSigner {
     /// UNIX socket address
@@ -31,6 +34,7 @@ pub struct AndroidSigner {
 }
 
 impl AndroidSigner {
+    /// Construct a new Android signer.
     #[inline]
     pub fn new(unique_name: &str) -> Result<Self, Error> {
         let name: String = format!("nip55_proxy_{unique_name}");
@@ -64,6 +68,7 @@ impl AndroidSigner {
             .await
     }
 
+    /// Check if an external signer is installed.
     pub async fn is_external_signer_installed(&self) -> Result<bool, Error> {
         // Get the client
         let client = self.client().await?;
