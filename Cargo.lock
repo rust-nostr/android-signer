@@ -1103,7 +1103,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nostr_android_signer_proxy"
+name = "nostr-android-signer-proxy"
 version = "0.1.0"
 dependencies = [
  "async-trait",

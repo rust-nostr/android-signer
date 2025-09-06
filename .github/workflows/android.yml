@@ -30,7 +30,7 @@ jobs:
 
       - name: Build debug target
         run: |
-          cargo build -p nostr_android_signer_proxy
+          cargo build -p nostr-android-signer-proxy
 
       - name: Generate Android Kotlin
         run: |
