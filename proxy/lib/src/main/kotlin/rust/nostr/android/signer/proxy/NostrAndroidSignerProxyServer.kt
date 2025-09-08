@@ -10,14 +10,25 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import rust.nostr.android.signer.proxy.ffi.NostrAndroidSignerProxy
 
-class NostrAndroidSignerProxyServer(private val context: Context, private val activity: ComponentActivity, private val uniqueName: String) {
+class NostrAndroidSignerProxyServer(
+    private val context: Context,
+    private val activity: ComponentActivity,
+    private val uniqueName: String
+) {
     private var serverJob: Job? = null
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun start() {
-        val middleware = NostrAndroidSignerProxyAdapter(context, activity)
-        val proxy = NostrAndroidSignerProxy(uniqueName, middleware)
+        // Construct adapter
+        val adapter = NostrAndroidSignerProxyAdapter(context, activity)
 
+        // Initialize the adapter
+        adapter.initialize()
+
+        // Construct the proxy
+        val proxy = NostrAndroidSignerProxy(uniqueName, adapter)
+
+        // Run
         serverJob = coroutineScope.launch {
             proxy.run()
         }

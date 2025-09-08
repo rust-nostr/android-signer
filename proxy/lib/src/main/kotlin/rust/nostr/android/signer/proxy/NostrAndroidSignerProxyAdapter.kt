@@ -29,8 +29,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         private const val TAG = "NostrAndroidSignerProxyAdapter"
     }
 
-
-    private var packageName: String? = null
+    // Private persistent session
+    private val sessionManager = SessionManager(context)
 
     // Queue for all requests
     private val requestQueue = mutableListOf<PendingRequest>()
@@ -66,6 +66,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         RequestType.SIGN_EVENT to { params ->
             RequestParamsValidator.validateSigningParams(params)
 
+            val packageName = sessionManager.getSignerPackage()
+
             Intent(Intent.ACTION_VIEW, "nostrsigner:${params.unsigned}".toUri()).apply {
                 packageName?.let { `package` = it }
                 putExtra("type", RequestType.SIGN_EVENT.value)
@@ -82,7 +84,10 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     private val resultHandlers = mapOf(
         RequestType.GET_PUBLIC_KEY to { data, continuation ->
             val publicKey = data?.getStringExtra("result")
-            packageName = data?.getStringExtra("package")
+            val packageName = data?.getStringExtra("package")
+
+            // Save package name
+            sessionManager.saveSignerPackage(packageName)
 
             if (publicKey != null) {
                 continuation.resume(publicKey)
@@ -112,6 +117,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     private fun createEncryptionIntentBuilder(requestType: RequestType): IntentBuilder = { params ->
         RequestParamsValidator.validateEncryptionParams(params, requestType.value)
 
+        val packageName = sessionManager.getSignerPackage()
+
         Intent(Intent.ACTION_VIEW, "nostrsigner:${params.plaintext}".toUri()).apply {
             packageName?.let { `package` = it }
             putExtra("type", requestType.value)
@@ -122,6 +129,8 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
 
     private fun createDecryptionIntentBuilder(requestType: RequestType): IntentBuilder = { params ->
         RequestParamsValidator.validateDecryptionParams(params, requestType.value)
+
+        val packageName = sessionManager.getSignerPackage()
 
         Intent(Intent.ACTION_VIEW, "nostrsigner:${params.ciphertext}".toUri()).apply {
             packageName?.let { `package` = it }
@@ -154,6 +163,14 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         array: Array<String>,
         extractor: (Cursor) -> String?
     ): String? {
+        val packageName = sessionManager.getSignerPackage()
+
+        if (packageName == null) {
+            Log.d(TAG, "No package name provided, skipping content resolver")
+
+            return null
+        }
+
         val result = context.contentResolver.query(
             "content://${packageName}.${requestType}".toUri(),
             array,
@@ -191,12 +208,6 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
     ): String? =
         withContext(Dispatchers.IO) {
             Log.d(TAG, "tryContentResolver: $requestType")
-
-            if (packageName == null) {
-                Log.d(TAG, "No package name provided, skipping content resolver")
-
-                return@withContext null
-            }
 
             when (requestType) {
                 RequestType.GET_PUBLIC_KEY -> {
@@ -372,6 +383,10 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
                 AndroidSignerProxyException.Callback("Unknown request type: ${requestType.value}")
             )
         }
+    }
+
+    fun initialize() {
+        sessionManager.loadStoredSession()
     }
 
     override suspend fun isExternalSignerInstalled(): Boolean = withContext(Dispatchers.IO) {
