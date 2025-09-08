@@ -117,6 +117,7 @@ impl AndroidSigner {
         // Make the request
         let req: Request<SignEventRequest> = Request::new(SignEventRequest {
             unsigned_event: unsigned.as_json(),
+            current_user_public_key: unsigned.pubkey.to_hex(),
         });
         let res: Response<SignEventReply> = client.sign_event(req).await?;
 

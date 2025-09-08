@@ -33,6 +33,8 @@ message GetPublicKeyReply {
 message SignEventRequest {
   // The unsigned event JSON
   string unsigned_event = 1;
+  /// Current user public key
+  string current_user_public_key = 2;
 }
 
 message SignEventReply {

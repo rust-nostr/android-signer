@@ -46,7 +46,10 @@ impl AndroidSigner for SignerAdapter {
         request: Request<SignEventRequest>,
     ) -> Result<Response<SignEventReply>, Status> {
         let req: SignEventRequest = request.into_inner();
-        let event: String = self.callback.sign_event(req.unsigned_event).await?;
+        let event: String = self
+            .callback
+            .sign_event(req.unsigned_event, req.current_user_public_key)
+            .await?;
         Ok(Response::new(SignEventReply { event }))
     }
 
@@ -173,7 +176,11 @@ pub trait NostrAndroidSignerProxyCallback: Send + Sync {
 
     async fn get_public_key(&self) -> Result<String, AndroidSignerProxyError>;
 
-    async fn sign_event(&self, unsigned: String) -> Result<String, AndroidSignerProxyError>;
+    async fn sign_event(
+        &self,
+        unsigned: String,
+        current_user_public_key: String,
+    ) -> Result<String, AndroidSignerProxyError>;
 
     async fn nip04_encrypt(
         &self,

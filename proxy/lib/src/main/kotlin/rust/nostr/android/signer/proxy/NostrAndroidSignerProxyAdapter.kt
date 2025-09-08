@@ -63,6 +63,7 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
             Intent(Intent.ACTION_VIEW, "nostrsigner:${params.unsigned}".toUri()).apply {
                 packageName?.let { `package` = it }
                 putExtra("type", RequestType.SIGN_EVENT.value)
+                putExtra("current_user", params.currentUserPubkey)
             }
         },
         RequestType.NIP04_ENCRYPT to createEncryptionIntentBuilder(RequestType.NIP04_ENCRYPT),
@@ -208,8 +209,11 @@ class NostrAndroidSignerProxyAdapter(private val context: Context, activity: Com
         return queueRequest(RequestType.GET_PUBLIC_KEY)
     }
 
-    override suspend fun signEvent(unsigned: String): String {
-        return queueRequest(RequestType.SIGN_EVENT, RequestParams.forSigning(unsigned))
+    override suspend fun signEvent(unsigned: String, currentUserPublicKey: String): String {
+        return queueRequest(
+            RequestType.SIGN_EVENT,
+            RequestParams.forSigning(unsigned, currentUserPublicKey)
+        )
     }
 
     override suspend fun nip04Encrypt(

@@ -69,7 +69,7 @@ data class RequestParams(
         /**
          * Creates RequestParams for signing events.
          */
-        fun forSigning(unsigned: String) = RequestParams(unsigned = unsigned)
+        fun forSigning(unsigned: String, currentUserPubkey: String) = RequestParams(unsigned = unsigned, currentUserPubkey = currentUserPubkey)
     }
 }
 
@@ -119,6 +119,10 @@ object RequestParamsValidator {
     fun validateSigningParams(params: RequestParams) {
         params.unsigned ?: throw InvalidRequestParamsException(
             "Unsigned event is required for sign_event request"
+        )
+
+        params.currentUserPubkey ?: throw InvalidRequestParamsException(
+            "Current user public key is required for sign_event request"
         )
     }
 }
