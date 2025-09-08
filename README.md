@@ -1,6 +1,6 @@
 # Android Signer (NIP-55)
 
-Nostr Android signer implementation ([NIP-55](https://github.com/nostr-protocol/nips/blob/master/55.md)).
+A library to interact with Android Signers ([NIP-55](https://github.com/nostr-protocol/nips/blob/master/55.md)).
 
 ## Project structure
 
