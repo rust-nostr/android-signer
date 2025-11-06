@@ -15,7 +15,7 @@ license = "MIT"
 rust-version = "1.85.0"
 
 [workspace.dependencies]
-nostr-android-signer-proto = { version = "0.43.0-alpha.2", path = "proto" }
+nostr-android-signer-proto = { version = "0.44.0", path = "proto" }
 tokio = { version = "1", default-features = false }
 tonic = "0.14"
 tonic-prost = "0.14"

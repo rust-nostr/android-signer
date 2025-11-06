@@ -1,7 +1,7 @@
 [package]
 name = "nostr-android-signer-proto"
-version = "0.43.0-alpha.2"
-edition = "2021"
+version = "0.44.0"
+edition = "2024"
 description = "Protobuf for Nostr Android Signer"
 authors.workspace = true
 homepage.workspace = true
