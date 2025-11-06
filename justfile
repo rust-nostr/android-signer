@@ -27,8 +27,7 @@ precommit: fmt check clippy test
 # Release rust crates
 [confirm]
 release-rust:
-    cargo publish -p nostr-android-signer-proto
-    cargo publish -p nostr-android-signer
+    cargo +stable publish --workspace
 
 [private]
 build-ffi:
